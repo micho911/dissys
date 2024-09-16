@@ -1,40 +1,36 @@
 package main
 
 import (
-	. "account/ledger"
-	. "account/peer"
-	. "account/transaction"
-	"fmt"
+	L "account/ledger"
+	P "account/peer"
+	"time"
 )
 
 func main() {
-	// print some thing
-	fmt.Println("Hello, World!")
-	// create a ledger
-	ledger := MakeLedger()
-	// create a peer
-	peer := new(Peer)
-	peer.ID = "peer1"
-	peer.Address = "localhost"
-	peer.Connect("localhost", 8080)
-	// test flood message
-	peer.FloodMessage("hello")
-	// test flood transaction
-	tx := new(Transaction)
-	tx.ID = "tx1"
-	tx.From = "alice"
-	tx.To = "bob"
-	tx.Amount = 10
-	peer.FloodTransaction(tx)
-	// test ledger transaction
-	ledger.Accounts["alice"] = 100
-	ledger.Accounts["bob"] = 0
-	ledger.Transaction(tx)
-	if ledger.Accounts["alice"] != 90 {
-		fmt.Println("ledger transaction failed")
-	}
-	if ledger.Accounts["bob"] != 10 {
-		fmt.Println("ledger transaction failed")
-	}
+	// currently test only that the peer can be created and two peers can connect to each other
+	peer1 := P.Peer{ID: "1", Ledger: L.MakeLedger(), Peers: []string{}, Adress: "localhost:0"}
+	go peer1.Connect("localhost:0")
+	time.Sleep(1 * time.Second)
+	peer2 := P.Peer{ID: "2", Ledger: L.MakeLedger(), Peers: []string{}}
+	go peer2.Connect(peer1.Adress)
+	time.Sleep(1 * time.Second)
+	peer3 := P.Peer{ID: "3", Ledger: L.MakeLedger(), Peers: []string{}}
+	go peer3.Connect(peer1.Adress)
+	time.Sleep(1 * time.Second)
+	peer4 := P.Peer{ID: "4", Ledger: L.MakeLedger(), Peers: []string{}}
+	go peer4.Connect(peer2.Adress)
+	time.Sleep(1 * time.Second)
 
+	peer3.FloodMessage("Hello")
+
+	// tx := &transaction.Transaction{
+	// 	ID:     "tx1",
+	// 	From:   "Alice",
+	// 	To:     "Bob",
+	// 	Amount: 10,
+	// }
+
+	// myPeer.FloodTransaction(tx)
+
+	// fmt.Println("Ledger after transaction:", myPeer.Ledger.Accounts)
 }

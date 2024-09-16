@@ -2,6 +2,12 @@
 
 ## MICHEL YILDIRIM NIKOLAJ MIKKELSEN
 
+- Connections between peers 
+- Initialize network
+ 
+ ## TODO
+ - 
+
 Ledger keeps the balance of a number of accounts
 An account is named by string
 Account has a balance
