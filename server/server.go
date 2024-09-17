@@ -23,7 +23,7 @@ func main() {
 	ID := name
 	ID = ID[:len(ID)-1]
 
-	peer := P.Peer{ID: ID, Ledger: L.MakeLedger(), Peers: []string{}, Adress: address}
+	peer := P.Peer{ID: ID, Ledger: L.MakeLedger(), Adress: address}
 	peer.Connect(address)
 
 	// tx := &transaction.Transaction{

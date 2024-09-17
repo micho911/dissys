@@ -2,80 +2,80 @@ package peer
 
 import (
 	L "account/ledger"
-	"bufio"
 	"fmt"
+	"log"
 	"net"
+	"net/rpc"
 )
 
 type Peer struct {
 	ID      string
 	Ledger  *L.Ledger
-	Peers   []string
+	Peers   PeerList
 	Adress  string
 	Send    net.Conn
 	Receive net.Conn
 }
 
+type PeerList struct {
+	Peers []string
+}
+
 func (p *Peer) Connect(addr string) {
 	fmt.Printf("I am peer %s\n", p.ID)
-	conn, err := net.Dial("tcp", addr)
-	if err != nil && conn == nil {
-		p.receive()
+	client, err := rpc.DialHTTP("tcp", addr)
+	if err != nil && client == nil {
+		p.server()
 	} else if err == nil {
-		defer conn.Close()
+		defer client.Close()
 		fmt.Printf("my address is %s\n", p.Adress)
-		p.Send = conn
 		fmt.Printf("Peer %s connected to %s\n", p.ID, addr)
-		p.RequestPeers(conn)
-
-		// scanner := bufio.NewScanner(conn)
-		// for scanner.Scan() {
-		// 	message := scanner.Text()
-		// }
-		p.receive()
-	}
-}
-
-func (p *Peer) RequestPeers(connection net.Conn) {
-	//request peers from a peer
-	fmt.Fprintf(connection, "RequestPeers")
-}
-
-func (p *Peer) AddPeer(addr string) {
-	p.Peers = append(p.Peers, addr)
-}
-
-func (p *Peer) receive() {
-	fmt.Printf("Open for connections as peer %s\n", p.ID)
-	ln, _ := net.Listen("tcp", p.Adress)
-	fmt.Printf("my address is %s\n", ln.Addr().String())
-	p.Adress = ln.Addr().String()
-	defer ln.Close()
-	for {
-		conn, _ := ln.Accept()
-		fmt.Printf("A peer from addr %s has connected to %s\n", conn.RemoteAddr().String(), p.ID)
-		p.Receive = conn
-		go p.handleConnection(conn)
-	}
-}
-
-func (p *Peer) handleConnection(conn net.Conn) {
-	defer conn.Close()
-	fmt.Printf("Listening for messages %s\n", conn.LocalAddr().String())
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		message := scanner.Text()
-		if message == "RequestPeers" {
-			fmt.Printf("Peer %s requested peers\n", p.ID)
-			//send peers
-			// for _, peer := range p.Peers {
-			// 	fmt.Fprintf(conn, peer)
-			// }
-			continue
+		var peers PeerList
+		err = client.Call("Peer.SendPeersToNewPeer", p, &peers)
+		if err != nil {
+			log.Fatal("Error calling SendPeersToNewPeer:", err)
 		}
-		fmt.Printf("I (peer %s) got message: %s \n", p.ID, message)
-		fmt.Fprintf(conn, "Hello from peer %s\n", p.ID)
+		p.Adress = addr
+		p.Peers = peers
+		p.Peers.addPeer(p.Adress)
+		p.Peers = p.Peers.removeDuplicatePeers()
+		p.server()
+	} else {
+		log.Fatal("Error connecting:", err)
 	}
+}
+
+func (p *Peer) SendPeersToNewPeer(newPeer *Peer, peers *PeerList) error {
+	peers = &p.Peers
+	peers.addPeer(p.Adress)
+	peers.removeDuplicatePeers()
+	return nil
+}
+
+func (p *Peer) server() {
+	fmt.Printf("Open for connections as peer %s\n", p.ID)
+	rpc.Register(p)
+
+	ln, err := net.Listen("tcp", p.Adress)
+	if err != nil {
+		log.Fatal("Error listening:", err)
+	}
+
+	p.Adress = ln.Addr().String()
+	p.Peers.addPeer(p.Adress)
+	fmt.Printf("my address is %s\n", p.Adress)
+
+	// Manually serve RPC connections instead of using `rpc.HandleHTTP()`
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				fmt.Println("Connection error:", err)
+				continue
+			}
+			go rpc.ServeConn(conn)
+		}
+	}()
 }
 
 // func (p *Peer) FloodTransaction(tx *T.Transaction) {
@@ -87,11 +87,27 @@ func (p *Peer) handleConnection(conn net.Conn) {
 // 	p.FloodMessage(string(message))
 // }
 
-func (p *Peer) FloodMessage(message string) {
-	//broadcast message to all peers
-	for _, peer := range p.Peers {
-		if peer.Send != nil {
-			fmt.Fprint(peer.Send, message+"\n")
+// func (p *Peer) FloodMessage(message string) {
+// 	//broadcast message to all peers
+// 	for _, peer := range p.Peers {
+// 		if peer.Send != nil {
+// 			fmt.Fprint(peer.Send, message+"\n")
+// 		}
+// 	}
+// }
+
+func (peers *PeerList) addPeer(peer string) {
+	peers.Peers = append(peers.Peers, peer)
+}
+
+func (peers *PeerList) removeDuplicatePeers() PeerList {
+	allKeys := make(map[string]bool)
+	list := []string{}
+	for _, item := range peers.Peers {
+		if _, value := allKeys[item]; !value {
+			allKeys[item] = true
+			list = append(list, item)
 		}
 	}
+	return PeerList{list}
 }
