@@ -19,9 +19,9 @@ func (p *Peer) Connect(addr string) {
 	if err != nil || client == nil {
 		p.serve()
 	} else {
-		defer client.Close()
-		fmt.Printf("Peer %s connected to %s\n", p.Address, addr)
+		// defer client.Close()
 		p.Peers[addr] = client
+		fmt.Printf("Peer %s connected to %s\n", p.Id, addr)
 		p.serve()
 		p.requestPeers(client)
 		p.FloodMessage("JoinMessage")
@@ -30,7 +30,11 @@ func (p *Peer) Connect(addr string) {
 }
 
 func (p *Peer) serve() {
-	rpc.Register(p)
+	server := rpc.NewServer()
+	err := server.RegisterName("Peer", p)
+	if err != nil {
+		log.Fatalf("Error registering RPC methods: %v", err)
+	}
 
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -47,44 +51,31 @@ func (p *Peer) serve() {
 				log.Println("accept error:", err)
 				continue
 			}
-			go rpc.ServeConn(conn)
+			go server.ServeConn(conn)
 		}
 	}()
 }
-
-/* func (p *Peer) FloodMessage(msg string) {
-	for addr := range p.Peers {
-		if p.Peers[addr] == nil {
-			continue
-		}
-		fmt.Printf("Peer %s sending to client %p\n", p.Id, p.Peers[addr])
-		var reply bool
-		senderAddr := p.Address
-		method := fmt.Sprintf("Peer.%s", msg)
-		err := p.Peers[addr].Call(method, senderAddr, &reply)
-		if err != nil || !reply {
-			log.Fatal("FloodMessage error: ", msg, err)
-		}
-	}
-} */
 
 func (p *Peer) FloodMessage(msg string) {
 	for addr, client := range p.Peers {
 		if client == nil {
 			continue
 		}
-		fmt.Printf("Peer %s sending to client %p at %s\n", p.Id, client, addr)
 		var reply bool
 		senderAddr := p.Address
 		method := fmt.Sprintf("Peer.%s", msg)
-
+		success := false
 		// Retry logic for sending messages
 		for i := 0; i < 3; i++ {
 			err := client.Call(method, senderAddr, &reply)
 			if err == nil && reply {
+				success = true
 				break // Success
 			}
 			log.Println("Failed to send message, retrying:", err)
+		}
+		if !success {
+			log.Printf("Failed to send message %s to %s after retries", msg, addr)
 		}
 	}
 }
@@ -92,7 +83,6 @@ func (p *Peer) FloodMessage(msg string) {
 func (p *Peer) requestPeers(client *rpc.Client) {
 	var reply []string
 	args := struct{}{}
-	fmt.Printf("Peer %s requesting from client %p\n", p.Id, client)
 	err := client.Call("Peer.GetPeers", args, &reply)
 	if err != nil {
 		log.Fatal("Peers error:", err)
@@ -104,11 +94,9 @@ func (p *Peer) requestPeers(client *rpc.Client) {
 				log.Println("Could not connect to requested peer")
 			} else {
 				p.Peers[addr] = client
-				fmt.Printf("Added address %s to peer %s map\n", addr, p.Id)
 			}
 		}
 	}
-	fmt.Printf("Peer %s new map: %+v\n", p.Id, p.Peers)
 }
 
 func (p *Peer) GetPeers(args struct{}, reply *[]string) error {
