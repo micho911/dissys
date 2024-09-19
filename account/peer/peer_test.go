@@ -3,6 +3,7 @@ package peer
 import (
 	"fmt"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -14,24 +15,24 @@ func TestConnection(t *testing.T) {
 	peer1, peer2, peer3, peer4 := peerList[0], peerList[1], peerList[2], peerList[3]
 
 	// Start peer1
-	startPeer(t, peer1, "localhost:0", 3000*time.Millisecond)
+	startPeer(t, peer1, "localhost:0", 1000*time.Millisecond)
 	checkPeer(t, peer1, 1, 0, "Peer1 after starting")
 
 	// Start peer2 and connect to peer1
-	startPeer(t, peer2, peer1.Address, 3000*time.Millisecond)
+	startPeer(t, peer2, peer1.Address, 1000*time.Millisecond)
 	printPeers(peer2, peer1)
 	checkPeer(t, peer2, 2, 1, "Peer2 after connecting to Peer1")
 	checkPeer(t, peer1, 2, 0, "Peer1 after Peer2 connected")
 
 	// Start peer3 and connect to peer2
-	startPeer(t, peer3, peer2.Address, 3000*time.Millisecond)
+	startPeer(t, peer3, peer2.Address, 1000*time.Millisecond)
 	printPeers(peer3, peer2, peer1)
 	checkPeer(t, peer3, 3, 2, "Peer3 after connecting to Peer2")
 	checkPeer(t, peer2, 3, 1, "Peer2 after Peer3 connected")
 	checkPeer(t, peer1, 3, 0, "Peer1 after Peer3 connected")
 
 	// Start peer4 and connect to peer2
-	startPeer(t, peer4, peer2.Address, 3000*time.Millisecond)
+	startPeer(t, peer4, peer2.Address, 1000*time.Millisecond)
 	printPeers(peer4)
 	printPeers(peer3)
 	printPeers(peer2)
@@ -94,7 +95,7 @@ func TestFloodTransaction(t *testing.T) {
 		t.Fatalf("Expected peer %s's ledger to have -30 in Bob's account", peer1.Id)
 	}
 
-	/*t3 := &Transaction{
+	t3 := &Transaction{
 		ID:     "3",
 		From:   "amin",
 		To:     "bob",
@@ -118,7 +119,67 @@ func TestFloodTransaction(t *testing.T) {
 	}
 	if peer2.Ledger.Accounts["bob"] != 25 {
 		t.Fatalf("Expected peer %s's ledger to have -25 in Bob's account", peer2.Id)
-	} */
+	}
+}
+
+func TestFloodMultipleTransactions(t *testing.T) {
+	// Create 5 accounts: account1, account2, account3, account4, account5
+	accounts := []string{"account1", "account2", "account3", "account4", "account5"}
+
+	// Create ledgers for the peers with the accounts
+	ledgers := []*Ledger{}
+	for i := 0; i < 10; i++ { // Create 10 peers
+		ledgers = append(ledgers, createLedgerWithAccounts(accounts...))
+	}
+	peers := createPeersWithLedgers(ledgers)
+
+	// Start peers in a network where each peer connects to the previous one
+	startPeer(t, peers[0], "localhost:0", 1000*time.Millisecond)
+	for i := 1; i < len(peers); i++ {
+		startPeer(t, peers[i], peers[i-1].Address, 1000*time.Millisecond)
+	}
+
+	// Each peer sends 10 transactions involving the 5 accounts
+	var wg sync.WaitGroup
+	for _, peer := range peers {
+		wg.Add(1)
+		go func(p *Peer) {
+			defer wg.Done()
+			for j := 0; j < 10; j++ { // Send 10 transactions from each peer
+				from := accounts[j%5] // Cycle through accounts
+				to := accounts[(j+1)%5]
+				amount := 10 * (j + 1) // Vary the transaction amount
+
+				txn := &Transaction{
+					ID:     fmt.Sprintf("txn-%s-%d", p.Id, j),
+					From:   from,
+					To:     to,
+					Amount: amount,
+				}
+
+				// Flood transaction to the network
+				p.FloodTransaction(txn)
+			}
+		}(peer)
+	}
+
+	// Wait for all peers to finish sending transactions
+	wg.Wait()
+
+	// Give time for transactions to propagate
+	time.Sleep(5000 * time.Millisecond)
+
+	// Check that all peers have the same ledger state
+	for _, account := range accounts {
+		expectedBalance := peers[0].Ledger.Accounts[account]
+		for _, peer := range peers {
+			if peer.Ledger.Accounts[account] != expectedBalance {
+				t.Fatalf("Mismatch: Peer %s has %d in %s, expected %d", peer.Id, peer.Ledger.Accounts[account], account, expectedBalance)
+			}
+		}
+	}
+
+	t.Log("All peers have consistent ledger state across all accounts")
 }
 
 func createLedgerWithAccounts(accounts ...string) *Ledger {
