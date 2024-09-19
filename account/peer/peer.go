@@ -5,12 +5,40 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"sync"
 )
+
+type Ledger struct {
+	Accounts map[string]int
+	lock     sync.Mutex
+}
+
+func MakeLedger() *Ledger {
+	ledger := new(Ledger)
+	ledger.Accounts = make(map[string]int)
+	return ledger
+}
+
+func (l *Ledger) Transaction(t *Transaction) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	l.Accounts[t.From] -= t.Amount
+	l.Accounts[t.To] += t.Amount
+}
 
 type Peer struct {
 	Id      string
 	Address string
 	Peers   map[string]*rpc.Client
+	Ledger  *Ledger
+}
+
+type Transaction struct {
+	ID     string
+	From   string
+	To     string
+	Amount int
 }
 
 func (p *Peer) Connect(addr string) {
@@ -19,7 +47,7 @@ func (p *Peer) Connect(addr string) {
 	if err != nil || client == nil {
 		p.serve()
 	} else {
-		// defer client.Close()
+		defer client.Close()
 		p.Peers[addr] = client
 		fmt.Printf("Peer %s connected to %s\n", p.Id, addr)
 		p.serve()
@@ -56,6 +84,25 @@ func (p *Peer) serve() {
 	}()
 }
 
+func (p *Peer) requestPeers(client *rpc.Client) {
+	var reply []string
+	args := struct{}{}
+	err := client.Call("Peer.GetPeers", args, &reply)
+	if err != nil {
+		log.Fatal("Peers error:", err)
+	}
+	for _, addr := range reply {
+		if addr != p.Address && p.Peers[addr] == nil {
+			client, err := rpc.Dial("tcp", addr)
+			if err != nil {
+				log.Println("Could not connect to requested peer")
+			} else {
+				p.Peers[addr] = client
+			}
+		}
+	}
+}
+
 func (p *Peer) FloodMessage(msg string) {
 	for addr, client := range p.Peers {
 		if client == nil {
@@ -80,23 +127,34 @@ func (p *Peer) FloodMessage(msg string) {
 	}
 }
 
-func (p *Peer) requestPeers(client *rpc.Client) {
-	var reply []string
-	args := struct{}{}
-	err := client.Call("Peer.GetPeers", args, &reply)
-	if err != nil {
-		log.Fatal("Peers error:", err)
-	}
-	for _, addr := range reply {
-		if addr != p.Address && p.Peers[addr] == nil {
-			client, err := rpc.Dial("tcp", addr)
-			if err != nil {
-				log.Println("Could not connect to requested peer")
-			} else {
-				p.Peers[addr] = client
+func (p *Peer) FloodTransaction(tx *Transaction) {
+	for addr, client := range p.Peers {
+		if client == nil {
+			continue
+		}
+		p.Ledger.Transaction(tx)
+		var reply bool
+		method := "Peer.UpdateLedger"
+		success := false
+		// Retry logic for sending transactions
+		for i := 0; i < 3; i++ {
+			err := client.Call(method, tx, &reply)
+			if err == nil && reply {
+				success = true
+				break // Success
 			}
+			log.Println("Failed to send transaction, retrying:", err)
+		}
+		if !success {
+			log.Printf("Failed to send transaction to %s after retries", addr)
 		}
 	}
+}
+
+func (p *Peer) UpdateLedger(tx *Transaction, reply *bool) error {
+	p.Ledger.Transaction(tx)
+	*reply = true
+	return nil
 }
 
 func (p *Peer) GetPeers(args struct{}, reply *[]string) error {
@@ -115,14 +173,4 @@ func (p *Peer) JoinMessage(addr string, reply *bool) error {
 	}
 	*reply = true
 	return nil
-}
-
-func (p *Peer) ConnectionCount() int {
-	count := 0
-	for _, client := range p.Peers {
-		if client != nil {
-			count++
-		}
-	}
-	return count
 }
