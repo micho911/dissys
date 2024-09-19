@@ -47,7 +47,6 @@ func (p *Peer) Connect(addr string) {
 	if err != nil || client == nil {
 		p.serve()
 	} else {
-		defer client.Close()
 		p.Peers[addr] = client
 		fmt.Printf("Peer %s connected to %s\n", p.Id, addr)
 		p.serve()
@@ -93,23 +92,22 @@ func (p *Peer) requestPeers(client *rpc.Client) {
 	}
 	for _, addr := range reply {
 		if addr != p.Address && p.Peers[addr] == nil {
-			client, err := rpc.Dial("tcp", addr)
-			if err != nil {
-				log.Println("Could not connect to requested peer")
-			} else {
-				p.Peers[addr] = client
-			}
+			p.connectToPeer(addr)
 		}
 	}
 }
 
 func (p *Peer) FloodMessage(msg string) {
-	for addr, client := range p.Peers {
-		if client == nil {
+	for addr := range p.Peers {
+		senderAddr := p.Address
+		if addr == senderAddr {
 			continue
 		}
+		if p.Peers[addr] == nil {
+			p.connectToPeer(addr)
+		}
+		client := p.Peers[addr]
 		var reply bool
-		senderAddr := p.Address
 		method := fmt.Sprintf("Peer.%s", msg)
 		success := false
 		// Retry logic for sending messages
@@ -127,12 +125,29 @@ func (p *Peer) FloodMessage(msg string) {
 	}
 }
 
+func (p *Peer) connectToPeer(addr string) {
+	client, err := rpc.Dial("tcp", addr)
+	if err != nil || client == nil {
+		fmt.Printf("Peer %s could not connect to %s\n", p.Id, addr)
+	}
+	p.Peers[addr] = client
+	fmt.Printf("Peer %s connected to %s\n", p.Id, addr)
+}
 func (p *Peer) FloodTransaction(tx *Transaction) {
-	for addr, client := range p.Peers {
-		if client == nil {
+	p.Ledger.Transaction(tx)
+	for addr := range p.Peers {
+		senderAddr := p.Address
+		if addr == senderAddr {
 			continue
 		}
-		p.Ledger.Transaction(tx)
+		if p.Peers[addr] == nil {
+			p.connectToPeer(addr)
+		}
+		client := p.Peers[addr]
+		if client == nil {
+			log.Printf("Peer %s could not connect to %s", p.Id, addr)
+			continue
+		}
 		var reply bool
 		method := "Peer.UpdateLedger"
 		success := false
