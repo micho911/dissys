@@ -1,139 +1,128 @@
 package peer
 
 import (
-	L "account/ledger"
-	"encoding/gob"
 	"fmt"
 	"log"
 	"net"
 	"net/rpc"
-	"time"
 )
 
 type Peer struct {
-	ID      string
-	Ledger  *L.Ledger
-	Peers   *PeerSet
+	Id      string
 	Address string
-	Conns   *rpc.Client
-}
-
-type PeerSet map[string]struct{}
-
-type JoinMessage struct {
-	PeerID string
-	Peers  *PeerSet
+	Peers   map[string]*rpc.Client
 }
 
 func (p *Peer) Connect(addr string) {
+	p.Peers = make(map[string]*rpc.Client)
 	client, err := rpc.Dial("tcp", addr)
-	if err != nil && client == nil {
-		p.startNetwork()
-	} else if err == nil {
-		defer client.Close()
-		p.Conns = client
+	if err != nil || client == nil {
 		p.serve()
-		time.Sleep(1 * time.Second)
-		p.syncPeers()
 	} else {
-		log.Fatal("Error connecting:", err)
+		// defer client.Close()
+		p.Peers[addr] = client
+		fmt.Printf("Peer %s connected to %s\n", p.Id, addr)
+		p.serve()
+		p.requestPeers(client)
+		p.FloodMessage("JoinMessage")
 	}
-}
 
-func (p *Peer) SendPeersToNewPeer(args struct{}, peers *PeerSet) error {
-	*peers = *p.Peers
-	return nil
-}
-
-func (p *Peer) syncPeers() {
-	incomingPeers := NewPeerSet()
-	err := p.Conns.Call("Peer.SendPeersToNewPeer", struct{}{}, incomingPeers)
-	time.Sleep(1 * time.Second)
-	if err != nil {
-		log.Fatal("Error calling SendPeersToNewPeer:", err)
-	}
-	p.Peers = incomingPeers
-	p.Peers.addPeer(p.Address)
-	p.FloodMessage(JoinMessage{PeerID: p.ID, Peers: (p.Peers)})
-}
-
-func (p *Peer) startNetwork() {
-	p.Peers = NewPeerSet()
-	p.serve()
-	p.Peers.addPeer(p.Address)
 }
 
 func (p *Peer) serve() {
-
-	gob.Register(JoinMessage{})
-	rpc.Register(p)
-
-	ln, err := net.Listen("tcp", "localhost:0")
+	server := rpc.NewServer()
+	err := server.RegisterName("Peer", p)
 	if err != nil {
-		log.Fatal("Error listening:", err)
+		log.Fatalf("Error registering RPC methods: %v", err)
 	}
-	p.Address = ln.Addr().String()
-	fmt.Println("Peer address:", p.Address)
+
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		log.Fatalf("Failed to listen on localhost:0: %v", err)
+	}
+	p.Address = l.Addr().String()
+	p.Peers[p.Address] = nil
+	fmt.Printf("Peer %s serving at %s\n", p.Id, p.Address)
+
 	go func() {
 		for {
-			conn, err := ln.Accept()
-			fmt.Println("Connection accepted")
+			conn, err := l.Accept()
 			if err != nil {
-				log.Println("Connection error:", err)
+				log.Println("accept error:", err)
 				continue
 			}
-			go rpc.ServeConn(conn) // Serve RPC calls using the connection
+			go server.ServeConn(conn)
 		}
 	}()
 }
 
-// func (p *Peer) FloodTransaction(tx *T.Transaction) {
-// 	message, err := json.Marshal(tx)
-// 	if err != nil {
-// 		fmt.Println("Error marshaling transaction:", err)
-// 		return
-// 	}
-// 	p.FloodMessage(string(message))
-// }
-
-func (p *Peer) FloodMessage(message interface{}) {
-	switch msg := message.(type) {
-	case JoinMessage:
-		err := p.Conns.Call("Peer.ReceiveJoinMessage", msg, nil)
-		time.Sleep(1 * time.Second)
-		if err != nil {
-			log.Println("Error flooding JoinMessage:", err)
+func (p *Peer) FloodMessage(msg string) {
+	for addr, client := range p.Peers {
+		if client == nil {
+			continue
 		}
-	// case TransactionMessage:
-	// 		fmt.Println("Flooding TransactionMessage")
-	// 		// Similar logic for TransactionMessage
-	default:
-		fmt.Println("Unknown message type")
+		var reply bool
+		senderAddr := p.Address
+		method := fmt.Sprintf("Peer.%s", msg)
+		success := false
+		// Retry logic for sending messages
+		for i := 0; i < 3; i++ {
+			err := client.Call(method, senderAddr, &reply)
+			if err == nil && reply {
+				success = true
+				break // Success
+			}
+			log.Println("Failed to send message, retrying:", err)
+		}
+		if !success {
+			log.Printf("Failed to send message %s to %s after retries", msg, addr)
+		}
 	}
 }
 
-func (p *Peer) ReceiveJoinMessage(joinMsg JoinMessage, reply *bool) error {
-	for _, peer := range joinMsg.Peers.Members() {
-		p.Peers.addPeer(peer)
+func (p *Peer) requestPeers(client *rpc.Client) {
+	var reply []string
+	args := struct{}{}
+	err := client.Call("Peer.GetPeers", args, &reply)
+	if err != nil {
+		log.Fatal("Peers error:", err)
+	}
+	for _, addr := range reply {
+		if addr != p.Address && p.Peers[addr] == nil {
+			client, err := rpc.Dial("tcp", addr)
+			if err != nil {
+				log.Println("Could not connect to requested peer")
+			} else {
+				p.Peers[addr] = client
+			}
+		}
+	}
+}
+
+func (p *Peer) GetPeers(args struct{}, reply *[]string) error {
+	*reply = make([]string, 0, len(p.Peers))
+	for addr := range p.Peers {
+		*reply = append(*reply, addr)
+	}
+	return nil
+}
+
+func (p *Peer) JoinMessage(addr string, reply *bool) error {
+	if _, exists := p.Peers[addr]; !exists {
+		p.Peers[addr] = nil // Add peer with no connection
+		fmt.Printf("Peer %s received join message from %s\n", p.Id, addr)
+		*reply = true
 	}
 	*reply = true
 	return nil
 }
 
-func NewPeerSet() *PeerSet {
-	peers := make(PeerSet) // Initialize the map
-	return &peers
-}
-
-func (peers *PeerSet) addPeer(peerAddr string) {
-	(*peers)[peerAddr] = struct{}{}
-}
-
-func (peers *PeerSet) Members() []string {
-	fmt.Printf("membering peers")
-	members := make([]string, 0, len(*peers))
-	for peer := range *peers {
-		members = append(members, peer)
+func (p *Peer) ConnectionCount() int {
+	count := 0
+	for _, client := range p.Peers {
+		if client != nil {
+			count++
+		}
 	}
-	return members
+	return count
 }
