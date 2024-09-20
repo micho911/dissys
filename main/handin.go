@@ -1,36 +1,49 @@
 package main
 
-// import (
-// 	L "account/ledger"
-// 	P "account/peer"
-// 	"time"
-// )
+import (
+	"fmt"
+	"peer"
+	"time"
+)
 
 func main() {
-	// currently test only that the peer can be created and two peers can connect to each other
-	// peer1 := P.Peer{ID: "1", Ledger: L.MakeLedger(), Peers: []string{}, Adress: "localhost:0"}
-	// go peer1.Connect("localhost:0")
-	// time.Sleep(1 * time.Second)
-	// peer2 := P.Peer{ID: "2", Ledger: L.MakeLedger(), Peers: []string{}}
-	// go peer2.Connect(peer1.Adress)
-	// time.Sleep(1 * time.Second)
-	// peer3 := P.Peer{ID: "3", Ledger: L.MakeLedger(), Peers: []string{}}
-	// go peer3.Connect(peer1.Adress)
-	// time.Sleep(1 * time.Second)
-	// peer4 := P.Peer{ID: "4", Ledger: L.MakeLedger(), Peers: []string{}}
-	// go peer4.Connect(peer2.Adress)
-	// time.Sleep(1 * time.Second)
+	fmt.Println("\n************** Running Peer to Peer Network **************")
+	fmt.Printf("(* 5 accounts on 10 peers sending 10 transactions each *)\n\n")
 
-	// peer3.FloodMessage("Hello")
+	accounts := []string{"account1", "account2", "account3", "account4", "account5"}
 
-	// tx := &transaction.Transaction{
-	// 	ID:     "tx1",
-	// 	From:   "Alice",
-	// 	To:     "Bob",
-	// 	Amount: 10,
-	// }
+	ledgers := []*peer.Ledger{}
+	for i := 0; i < 10; i++ {
+		ledgers = append(ledgers, createLedgerWithAccounts(accounts...))
+	}
+	peers := createPeersWithLedgers(ledgers)
 
-	// myPeer.FloodTransaction(tx)
+	startPeer(peers[0], "localhost:0", 500*time.Millisecond)
+	for i := 1; i < len(peers); i++ {
+		startPeer(peers[i], peers[i-1].Address, 500*time.Millisecond)
+	}
 
-	// fmt.Println("Ledger after transaction:", myPeer.Ledger.Accounts)
+	for _, p := range peers {
+		go func(p *peer.Peer) {
+			for j := 0; j < 10; j++ {
+				from := accounts[j%5]
+				to := accounts[(j+1)%5]
+				amount := 10 * (j + 1)
+
+				txn := &peer.Transaction{
+					ID:     fmt.Sprintf("txn-%s-%d", p.Id, j),
+					From:   from,
+					To:     to,
+					Amount: amount,
+				}
+
+				p.FloodTransaction(txn)
+			}
+		}(p)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	fmt.Printf("************** Ledgers **************\n\n")
+	printLedgers(peers)
 }

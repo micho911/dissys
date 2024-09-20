@@ -2,7 +2,6 @@ package peer
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -15,24 +14,24 @@ func TestConnection(t *testing.T) {
 	peer1, peer2, peer3, peer4 := peerList[0], peerList[1], peerList[2], peerList[3]
 
 	// Start peer1
-	startPeer(t, peer1, "localhost:0", 1000*time.Millisecond)
+	startPeer(t, peer1, "localhost:0", 500*time.Millisecond)
 	checkPeer(t, peer1, 1, 0, "Peer1 after starting")
 
 	// Start peer2 and connect to peer1
-	startPeer(t, peer2, peer1.Address, 1000*time.Millisecond)
+	startPeer(t, peer2, peer1.Address, 500*time.Millisecond)
 	printPeers(peer2, peer1)
 	checkPeer(t, peer2, 2, 1, "Peer2 after connecting to Peer1")
 	checkPeer(t, peer1, 2, 0, "Peer1 after Peer2 connected")
 
 	// Start peer3 and connect to peer2
-	startPeer(t, peer3, peer2.Address, 1000*time.Millisecond)
+	startPeer(t, peer3, peer2.Address, 500*time.Millisecond)
 	printPeers(peer3, peer2, peer1)
 	checkPeer(t, peer3, 3, 2, "Peer3 after connecting to Peer2")
 	checkPeer(t, peer2, 3, 1, "Peer2 after Peer3 connected")
 	checkPeer(t, peer1, 3, 0, "Peer1 after Peer3 connected")
 
 	// Start peer4 and connect to peer2
-	startPeer(t, peer4, peer2.Address, 1000*time.Millisecond)
+	startPeer(t, peer4, peer2.Address, 500*time.Millisecond)
 	printPeers(peer4)
 	printPeers(peer3)
 	printPeers(peer2)
@@ -53,11 +52,11 @@ func TestFloodTransaction(t *testing.T) {
 	peers := createPeersWithLedgers(ledgers)
 	peer1, peer2, peer3, peer4, peer5 := peers[0], peers[1], peers[2], peers[3], peers[4]
 
-	startPeer(t, peer1, "localhost:0", 1000*time.Millisecond)
-	startPeer(t, peer2, peer1.Address, 1000*time.Millisecond)
-	startPeer(t, peer3, peer2.Address, 1000*time.Millisecond)
-	startPeer(t, peer4, peer2.Address, 1000*time.Millisecond)
-	startPeer(t, peer5, peer2.Address, 1000*time.Millisecond)
+	startPeer(t, peer1, "localhost:0", 500*time.Millisecond)
+	startPeer(t, peer2, peer1.Address, 500*time.Millisecond)
+	startPeer(t, peer3, peer2.Address, 500*time.Millisecond)
+	startPeer(t, peer4, peer2.Address, 500*time.Millisecond)
+	startPeer(t, peer5, peer2.Address, 500*time.Millisecond)
 
 	// Create a transaction
 	t1 := &Transaction{
@@ -68,7 +67,7 @@ func TestFloodTransaction(t *testing.T) {
 	}
 
 	peer1.FloodTransaction(t1)
-	time.Sleep(2000 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	//Check that peer 1 now has updated ledger
 	if peer1.Ledger.Accounts["alice"] != -10 {
@@ -85,7 +84,7 @@ func TestFloodTransaction(t *testing.T) {
 		Amount: 30,
 	}
 	peer2.FloodTransaction(t2)
-	time.Sleep(3000 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	//Check that peer 1 now has updated ledger after peer2 flooded
 	if peer1.Ledger.Accounts["alice"] != 20 {
 		fmt.Printf("Alice has %d in account", peer1.Ledger.Accounts["alice"])
@@ -103,7 +102,7 @@ func TestFloodTransaction(t *testing.T) {
 		Amount: 15,
 	}
 	peer3.FloodTransaction(t3)
-	time.Sleep(3000 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	//Check that peer 1 now has updated ledgers after peer3 flooded
 	if peer1.Ledger.Accounts["amin"] != -45 {
 		fmt.Printf("Amin has %d", peer1.Ledger.Accounts["amin"])
@@ -136,9 +135,9 @@ func TestFloodMultipleTransactions(t *testing.T) {
 	peers := createPeersWithLedgers(ledgers)
 
 	// Start peers in a network where each peer connects to the previous one
-	startPeer(t, peers[0], "localhost:0", 1000*time.Millisecond)
+	startPeer(t, peers[0], "localhost:0", 500*time.Millisecond)
 	for i := 1; i < len(peers); i++ {
-		startPeer(t, peers[i], peers[i-1].Address, 1000*time.Millisecond)
+		startPeer(t, peers[i], peers[i-1].Address, 500*time.Millisecond)
 	}
 
 	// Each peer sends 10 transactions involving the 5 accounts
@@ -163,7 +162,7 @@ func TestFloodMultipleTransactions(t *testing.T) {
 	}
 
 	// Give time for transactions to propagate
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// Check that all peers have the same ledger state
 	for _, account := range accounts {
@@ -176,62 +175,4 @@ func TestFloodMultipleTransactions(t *testing.T) {
 	}
 
 	t.Log("All peers have consistent ledger state across all accounts")
-}
-
-func createLedgerWithAccounts(accounts ...string) *Ledger {
-	l := MakeLedger()
-	for _, account := range accounts {
-		l.Accounts[account] = 0
-	}
-	return l
-}
-
-func createPeersWithLedgers(ledgers []*Ledger) []*Peer {
-	peers := make([]*Peer, len(ledgers))
-	for i, ledger := range ledgers {
-		peers[i] = &Peer{Id: strconv.Itoa(i + 1), Ledger: ledger}
-	}
-	return peers
-}
-
-// Helper function to create peers with given IDs
-func createPeers(ids ...string) []*Peer {
-	peers := make([]*Peer, len(ids))
-	for i, id := range ids {
-		peers[i] = &Peer{Id: id, Ledger: MakeLedger()}
-	}
-	return peers
-}
-
-// Helper function to start a peer and connect it to an address
-func startPeer(t *testing.T, p *Peer, connectAddr string, delay time.Duration) {
-	go p.Connect(connectAddr)
-	time.Sleep(delay)
-}
-
-func connectionCount(p *Peer) int {
-	count := 0
-	for _, client := range p.Peers {
-		if client != nil {
-			count++
-		}
-	}
-	return count
-}
-
-// Helper function to check the state of a peer
-func checkPeer(t *testing.T, p *Peer, expectedPeers int, expectedConnections int, msg string) {
-	if len(p.Peers) != expectedPeers {
-		t.Fatalf("%s: expected %d peers, got %d", msg, expectedPeers, len(p.Peers))
-	}
-	if connectionCount(p) != expectedConnections {
-		t.Fatalf("%s: expected %d connections, got %d", msg, expectedConnections, connectionCount(p))
-	}
-}
-
-// Helper function to print peer maps for debugging
-func printPeers(peers ...*Peer) {
-	for _, p := range peers {
-		fmt.Printf("Peer%s.peers: %v\n", p.Id, p.Peers)
-	}
 }

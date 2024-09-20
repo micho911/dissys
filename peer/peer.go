@@ -5,40 +5,13 @@ import (
 	"log"
 	"net"
 	"net/rpc"
-	"sync"
 )
-
-type Ledger struct {
-	Accounts map[string]int
-	lock     sync.Mutex
-}
-
-func MakeLedger() *Ledger {
-	ledger := new(Ledger)
-	ledger.Accounts = make(map[string]int)
-	return ledger
-}
-
-func (l *Ledger) Transaction(t *Transaction) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-
-	l.Accounts[t.From] -= t.Amount
-	l.Accounts[t.To] += t.Amount
-}
 
 type Peer struct {
 	Id      string
 	Address string
 	Peers   map[string]*rpc.Client
 	Ledger  *Ledger
-}
-
-type Transaction struct {
-	ID     string
-	From   string
-	To     string
-	Amount int
 }
 
 func (p *Peer) Connect(addr string) {
@@ -83,6 +56,14 @@ func (p *Peer) serve() {
 	}()
 }
 
+func (p *Peer) connectToPeer(addr string) {
+	client, err := rpc.Dial("tcp", addr)
+	if err != nil || client == nil {
+		fmt.Printf("Peer %s could not connect to %s\n", p.Id, addr)
+	}
+	p.Peers[addr] = client
+}
+
 func (p *Peer) requestPeers(client *rpc.Client) {
 	var reply []string
 	args := struct{}{}
@@ -110,12 +91,11 @@ func (p *Peer) FloodMessage(msg string) {
 		var reply bool
 		method := fmt.Sprintf("Peer.%s", msg)
 		success := false
-		// Retry logic for sending messages
 		for i := 0; i < 3; i++ {
 			err := client.Call(method, senderAddr, &reply)
 			if err == nil && reply {
 				success = true
-				break // Success
+				break
 			}
 			log.Println("Failed to send message, retrying:", err)
 		}
@@ -123,15 +103,6 @@ func (p *Peer) FloodMessage(msg string) {
 			log.Printf("Failed to send message %s to %s after retries", msg, addr)
 		}
 	}
-}
-
-func (p *Peer) connectToPeer(addr string) {
-	client, err := rpc.Dial("tcp", addr)
-	if err != nil || client == nil {
-		fmt.Printf("Peer %s could not connect to %s\n", p.Id, addr)
-	}
-	p.Peers[addr] = client
-	fmt.Printf("Peer %s connected to %s\n", p.Id, addr)
 }
 func (p *Peer) FloodTransaction(tx *Transaction) {
 	p.Ledger.Transaction(tx)
@@ -151,12 +122,11 @@ func (p *Peer) FloodTransaction(tx *Transaction) {
 		var reply bool
 		method := "Peer.UpdateLedger"
 		success := false
-		// Retry logic for sending transactions
 		for i := 0; i < 3; i++ {
 			err := client.Call(method, tx, &reply)
 			if err == nil && reply {
 				success = true
-				break // Success
+				break
 			}
 			log.Println("Failed to send transaction, retrying:", err)
 		}
@@ -164,28 +134,4 @@ func (p *Peer) FloodTransaction(tx *Transaction) {
 			log.Printf("Failed to send transaction to %s after retries", addr)
 		}
 	}
-}
-
-func (p *Peer) UpdateLedger(tx *Transaction, reply *bool) error {
-	p.Ledger.Transaction(tx)
-	*reply = true
-	return nil
-}
-
-func (p *Peer) GetPeers(args struct{}, reply *[]string) error {
-	*reply = make([]string, 0, len(p.Peers))
-	for addr := range p.Peers {
-		*reply = append(*reply, addr)
-	}
-	return nil
-}
-
-func (p *Peer) JoinMessage(addr string, reply *bool) error {
-	if _, exists := p.Peers[addr]; !exists {
-		p.Peers[addr] = nil // Add peer with no connection
-		fmt.Printf("Peer %s received join message from %s\n", p.Id, addr)
-		*reply = true
-	}
-	*reply = true
-	return nil
 }
