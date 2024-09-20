@@ -3,7 +3,6 @@ package peer
 import (
 	"fmt"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 )
@@ -11,6 +10,7 @@ import (
 // Test function
 func TestConnection(t *testing.T) {
 	// Create peers
+	fmt.Println("Testing connections...")
 	peerList := createPeers("1", "2", "3", "4")
 	peer1, peer2, peer3, peer4 := peerList[0], peerList[1], peerList[2], peerList[3]
 
@@ -44,6 +44,7 @@ func TestConnection(t *testing.T) {
 }
 
 func TestFloodTransaction(t *testing.T) {
+	fmt.Println("\nTesting flood transactions...")
 	// Create peers
 	ledgers := []*Ledger{}
 	for range 5 {
@@ -123,6 +124,7 @@ func TestFloodTransaction(t *testing.T) {
 }
 
 func TestFloodMultipleTransactions(t *testing.T) {
+	fmt.Println("\n**************Integration test**************\n (*5 accounts on 10 peers sending 10 transactions each*)")
 	// Create 5 accounts: account1, account2, account3, account4, account5
 	accounts := []string{"account1", "account2", "account3", "account4", "account5"}
 
@@ -140,11 +142,8 @@ func TestFloodMultipleTransactions(t *testing.T) {
 	}
 
 	// Each peer sends 10 transactions involving the 5 accounts
-	var wg sync.WaitGroup
 	for _, peer := range peers {
-		wg.Add(1)
 		go func(p *Peer) {
-			defer wg.Done()
 			for j := 0; j < 10; j++ { // Send 10 transactions from each peer
 				from := accounts[j%5] // Cycle through accounts
 				to := accounts[(j+1)%5]
@@ -162,9 +161,6 @@ func TestFloodMultipleTransactions(t *testing.T) {
 			}
 		}(peer)
 	}
-
-	// Wait for all peers to finish sending transactions
-	wg.Wait()
 
 	// Give time for transactions to propagate
 	time.Sleep(5000 * time.Millisecond)
