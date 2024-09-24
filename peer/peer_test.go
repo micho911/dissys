@@ -105,7 +105,6 @@ func TestFloodTransaction(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	//Check that peer 1 now has updated ledgers after peer3 flooded
 	if peer1.Ledger.Accounts["amin"] != -45 {
-		fmt.Printf("Amin has %d", peer1.Ledger.Accounts["amin"])
 		t.Fatalf("Expected peer %s's ledger to have -45 in Amin's account", peer1.Id)
 
 	}

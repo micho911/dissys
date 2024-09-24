@@ -4,7 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"fmt"
+	"crypto/sha256"
 	"io"
 	"math/big"
 	"os"
@@ -38,10 +38,6 @@ func KeyGen(k int) (pk Key, sk Key) {
 		sk.exp = d
 		sk.n = n
 	}
-	fmt.Println("n is", n.String())
-	fmt.Println("the length of n is", n.BitLen())
-	fmt.Println("d is", d.String())
-	fmt.Println("the length of d is", d.BitLen())
 	return pk, sk
 }
 
@@ -114,4 +110,26 @@ func DecryptFromFile(fileToRead string, key []byte) {
 	if err != nil {
 		panic(err.Error())
 	}
+}
+
+func Sign(message []byte, sk Key) []byte {
+	hash := sha256.Sum256(message)
+	m := new(big.Int).SetBytes(hash[:])
+	if m.Cmp(&sk.n) >= 0 {
+		panic("Hash too large to sign with the provided RSA key")
+	}
+	signature := Decrypt(m, sk)
+
+	return signature.Bytes()
+}
+
+func Verify(message []byte, signature []byte, pk Key) bool {
+	hash := sha256.Sum256(message)
+
+	signatureInt := new(big.Int).SetBytes(signature)
+	recoveredHashInt := Encrypt(signatureInt, pk)
+	recoveredHash := recoveredHashInt.Bytes()
+	originalHash := hash[:]
+
+	return string(recoveredHash) == string(originalHash)
 }
