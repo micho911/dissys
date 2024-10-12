@@ -1,9 +1,7 @@
 package wallet
 
 import (
-	"encoding/json"
 	"encrypt"
-	"math/big"
 	"testing"
 	"time"
 )
@@ -13,23 +11,12 @@ func TestWallet(t *testing.T) {
 	password := "strongpassword"
 	message := []byte("This is a test message.")
 
-	pubKeyStr := Generate(filename, password)
-	t.Log("Public Key:", pubKeyStr)
+	pk := Generate(filename, password)
+	t.Log("Public Key:", pk)
 
-	// Sign the message
+	startTime := time.Now()
 	signature := Sign(filename, password, message)
 	t.Log("Signature:", signature)
-
-	var pkData map[string]string
-	err := json.Unmarshal([]byte(pubKeyStr), &pkData)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var e, n big.Int
-	e.SetString(pkData["e"], 10)
-	n.SetString(pkData["n"], 10)
-	pk := encrypt.Key{Exp: e, N: n}
 
 	valid := encrypt.Verify(message, signature, pk)
 	if !valid {
@@ -37,6 +24,7 @@ func TestWallet(t *testing.T) {
 	} else {
 		t.Log("Signature verification succeeded")
 	}
+	t.Logf("Time taken for signature verification: %v", time.Since(startTime))
 
 }
 
@@ -46,24 +34,13 @@ func TestIncorrectPasswordTiming(t *testing.T) {
 	incorrectPasswords := []string{"wrongpass1", "wrongpass2", "wrongpass3", "wrongpass4", "wrongpass5"}
 	message := []byte("This is a test message.")
 
-	pubKeyStr := Generate(filename, correctPassword)
-	t.Log("Public Key:", pubKeyStr)
+	pk := Generate(filename, correctPassword)
+	t.Log("Public Key:", pk)
 
 	startTime := time.Now()
 	signature := Sign(filename, correctPassword, message)
 	correctDuration := time.Since(startTime)
 	t.Logf("Time taken for correct password attempt: %v", correctDuration)
-
-	var pkData map[string]string
-	err := json.Unmarshal([]byte(pubKeyStr), &pkData)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var e, n big.Int
-	e.SetString(pkData["e"], 10)
-	n.SetString(pkData["n"], 10)
-	pk := encrypt.Key{Exp: e, N: n}
 
 	valid := encrypt.Verify(message, signature, pk)
 	if !valid {

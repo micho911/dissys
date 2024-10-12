@@ -2,4 +2,4 @@ module wallet
 
 go 1.23.0
 
-require golang.org/x/crypto v0.28.0 // indirect
+require golang.org/x/crypto v0.28.0 // direct

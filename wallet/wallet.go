@@ -16,7 +16,7 @@ type EncryptedKeyFile struct {
 	EncryptedData []byte
 }
 
-func Generate(filename string, password string) string {
+func Generate(filename string, password string) encrypt.Key {
 	pk, sk := encrypt.KeyGen(2048)
 
 	skData := map[string]string{
@@ -38,14 +38,7 @@ func Generate(filename string, password string) string {
 
 	encrypt.EncryptToFile(filename, skBytes, key, true)
 
-	pkData := map[string]string{
-		"e": pk.Exp.String(),
-		"n": pk.N.String(),
-	}
-	pkBytes, err := json.Marshal(pkData)
-	util.Must(err)
-
-	return string(pkBytes)
+	return pk
 }
 
 func Sign(filename string, password string, msg []byte) []byte {
