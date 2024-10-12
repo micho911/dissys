@@ -8,11 +8,12 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"util"
 )
 
 type Key struct {
-	exp big.Int
-	n   big.Int
+	Exp big.Int
+	N   big.Int
 }
 
 func KeyGen(k int) (pk Key, sk Key) {
@@ -33,29 +34,27 @@ func KeyGen(k int) (pk Key, sk Key) {
 		qTimesP.Mul(&pMinusOne, &qMinusOne)
 		d.ModInverse(e, &qTimesP)
 
-		pk.exp = *e
-		pk.n = n
-		sk.exp = d
-		sk.n = n
+		pk.Exp = *e
+		pk.N = n
+		sk.Exp = d
+		sk.N = n
 	}
 	return pk, sk
 }
 
 func Encrypt(m *big.Int, pk Key) big.Int {
 	var temp big.Int
-	return *temp.Exp(m, &pk.exp, &pk.n)
+	return *temp.Exp(m, &pk.Exp, &pk.N)
 }
 
 func Decrypt(c *big.Int, sk Key) big.Int {
 	var temp big.Int
-	return *temp.Exp(c, &sk.exp, &sk.n)
+	return *temp.Exp(c, &sk.Exp, &sk.N)
 }
 
-func EncryptToFile(fileToWrite string, message []byte, key []byte) {
+func EncryptToFile(fileToWrite string, message []byte, key []byte, options ...bool) {
 	c, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err.Error())
-	}
+	util.Must(err)
 
 	nonce := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
@@ -63,59 +62,62 @@ func EncryptToFile(fileToWrite string, message []byte, key []byte) {
 	}
 
 	aesgcm, err := cipher.NewGCM(c)
-	if err != nil {
-		panic(err.Error())
-	}
+	util.Must(err)
 
 	ciphertext := aesgcm.Seal(nil, nonce, message, nil)
-
 	combined := append(nonce, ciphertext...)
 
-	err = os.WriteFile(fileToWrite, combined, 0644)
-	if err != nil {
-		panic(err.Error())
+	appendMode := false
+	if len(options) > 0 {
+		appendMode = options[0]
 	}
+	var file *os.File
+	if appendMode {
+		file, err = os.OpenFile(fileToWrite, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	} else {
+		file, err = os.Create(fileToWrite)
+	}
+	util.Must(err)
+	defer file.Close()
+	_, err = file.Write(combined)
+	util.Must(err)
 
+}
+
+func DecryptFromData(encryptedData []byte, key []byte) []byte {
+	if len(encryptedData) < 12 {
+		panic("Encrypted data is too short")
+	}
+	nonce := encryptedData[:12]
+	ciphertext := encryptedData[12:]
+
+	block, err := aes.NewCipher(key)
+	util.Must(err)
+
+	aesgcm, err := cipher.NewGCM(block)
+	util.Must(err)
+
+	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
+	util.Must(err)
+
+	return plaintext
 }
 
 func DecryptFromFile(fileToRead string, key []byte) {
 	fileContent, err := os.ReadFile(fileToRead)
-	if err != nil {
-		panic(err.Error())
-	}
+	util.Must(err)
 
-	if len(fileContent) < 12 {
-		panic("File content is too short to contain a valid nonce and ciphertext")
-	}
-	nonce := fileContent[:12]
-	ciphertext := fileContent[12:]
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		panic(err.Error())
-	}
+	plaintext := DecryptFromData(fileContent, key)
 
 	// write the decrypted content to test_decrypted.txt
 	err = os.WriteFile("test_decrypted.txt", plaintext, 0644)
-	if err != nil {
-		panic(err.Error())
-	}
+	util.Must(err)
 }
 
 func Sign(message []byte, sk Key) []byte {
 	hash := sha256.Sum256(message)
 	m := new(big.Int).SetBytes(hash[:])
-	if m.Cmp(&sk.n) >= 0 {
+	if m.Cmp(&sk.N) >= 0 {
 		panic("Hash too large to sign with the provided RSA key")
 	}
 	signature := Decrypt(m, sk)

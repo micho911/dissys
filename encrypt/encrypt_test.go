@@ -15,10 +15,10 @@ func TestRSAandAESTest(t *testing.T) {
 	t.Log("Generating RSA key pair")
 	pk, sk := KeyGen(128)
 	msg, _ := rand.Prime(rand.Reader, 64)
-	if pk.n.Cmp(&sk.n) != 0 {
+	if pk.N.Cmp(&sk.N) != 0 {
 		t.Fatal("RSA public and private keys do not have the same modulus")
 	}
-	if pk.n.BitLen() != 128 {
+	if pk.N.BitLen() != 128 {
 		t.Fatal("RSA public key modulus is not 128 bits")
 	}
 
@@ -38,7 +38,7 @@ func TestRSAandAESTest(t *testing.T) {
 
 	aeskey, _ := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
 
-	plaintext := []byte(sk.exp.String() + "," + sk.n.String())
+	plaintext := []byte(sk.Exp.String() + "," + sk.N.String())
 	fileName := "test.txt"
 
 	t.Log("Encrypting RSA secret key to file")
