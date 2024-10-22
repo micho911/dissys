@@ -22,7 +22,7 @@ func main() {
 	accounts := []string{"account1", "account2", "account3", "account4", "account5"}
 	keyPairs := make(map[string]KeyPair)
 	encodedAccounts := make(map[string]string)
-	
+
 	for _, account := range accounts {
 		pk, sk := encrypt.KeyGen(2048)
 		keyPairs[account] = KeyPair{PublicKey: pk, PrivateKey: sk}
@@ -53,7 +53,6 @@ func main() {
 				toName := accounts[(j+1)%5]
 				amount := 10 * (j + 1)
 
-<<<<<<< main/handin.go
 				fromAccount := encodedAccounts[fromName]
 				toAccount := encodedAccounts[toName]
 				txnID := fmt.Sprintf("txn-%s-%d", p.Id, j)
@@ -61,19 +60,12 @@ func main() {
 				signatureBytes := encrypt.Sign([]byte(msg), keyPairs[fromName].PrivateKey)
 				signatureStr := base64.StdEncoding.EncodeToString(signatureBytes)
 
-				txn := &peer.SignedTransaction{
+				txn := &ledger.SignedTransaction{
 					ID:        txnID,
 					From:      fromAccount,
 					To:        toAccount,
 					Amount:    amount,
 					Signature: signatureStr,
-=======
-				txn := &ledger.Transaction{
-					ID:     fmt.Sprintf("txn-%s-%d", p.Id, j),
-					From:   from,
-					To:     to,
-					Amount: amount,
->>>>>>> main/handin.go
 				}
 
 				p.FloodTransaction(txn)

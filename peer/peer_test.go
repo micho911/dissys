@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encrypt"
 	"fmt"
+	"ledger"
 	"strconv"
 	"testing"
 	"time"
@@ -90,7 +91,7 @@ func TestFloodTransaction(t *testing.T) {
 	signatureBytes := encrypt.Sign([]byte(msg), keyPairs["alice"].PrivateKey)
 	signatureStr := base64.StdEncoding.EncodeToString(signatureBytes)
 
-	t1 := &SignedTransaction{
+	t1 := &ledger.SignedTransaction{
 		ID:        txnID,
 		From:      fromAccount,
 		To:        toAccount,
@@ -118,7 +119,7 @@ func TestFloodTransaction(t *testing.T) {
 	signatureBytes = encrypt.Sign([]byte(msg), keyPairs["amin"].PrivateKey)
 	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
 
-	t2 := &SignedTransaction{
+	t2 := &ledger.SignedTransaction{
 		ID:        txnID,
 		From:      fromAccount,
 		To:        toAccount,
@@ -146,7 +147,7 @@ func TestFloodTransaction(t *testing.T) {
 	signatureBytes = encrypt.Sign([]byte(msg), keyPairs["amin"].PrivateKey)
 	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
 
-	t3 := &SignedTransaction{
+	t3 := &ledger.SignedTransaction{
 		ID:        txnID,
 		From:      fromAccount,
 		To:        toAccount,
@@ -188,7 +189,7 @@ func TestInvalidTransactions(t *testing.T) {
 	accountKeys := []string{encodedAccounts["alice"], encodedAccounts["bob"], encodedAccounts["charlie"]}
 
 	// Create ledgers with accounts
-	ledgers := []*Ledger{}
+	ledgers := []*ledger.Ledger{}
 	for i := 0; i < 3; i++ {
 		ledgers = append(ledgers, createLedgerWithAccounts(accountKeys...))
 	}
@@ -215,7 +216,7 @@ func TestInvalidTransactions(t *testing.T) {
 	signatureBytes := encrypt.Sign([]byte(msg), keyPairs["bob"].PrivateKey) // Wrong key
 	signatureStr := base64.StdEncoding.EncodeToString(signatureBytes)
 
-	invalidTxn1 := &SignedTransaction{
+	invalidTxn1 := &ledger.SignedTransaction{
 		ID:        txnID,
 		From:      fromAccount,
 		To:        toAccount,
@@ -244,7 +245,7 @@ func TestInvalidTransactions(t *testing.T) {
 	signatureBytes[0] ^= 0xFF // Tamper with the signature
 	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
 
-	invalidTxn2 := &SignedTransaction{
+	invalidTxn2 := &ledger.SignedTransaction{
 		ID:        txnID,
 		From:      fromAccount,
 		To:        toAccount,
@@ -272,7 +273,7 @@ func TestInvalidTransactions(t *testing.T) {
 	signatureBytes = encrypt.Sign([]byte(wrongMsg), keyPairs["bob"].PrivateKey) // Sign wrong message
 	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
 
-	invalidTxn3 := &SignedTransaction{
+	invalidTxn3 := &ledger.SignedTransaction{
 		ID:        txnID,
 		From:      fromAccount,
 		To:        toAccount,
@@ -302,7 +303,7 @@ func TestInvalidTransactions(t *testing.T) {
 	signatureBytes = encrypt.Sign([]byte(msg), keyPairs["alice"].PrivateKey)
 	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
 
-	validTxn := &SignedTransaction{
+	validTxn := &ledger.SignedTransaction{
 		ID:        txnID,
 		From:      fromAccount,
 		To:        toAccount,
@@ -343,7 +344,7 @@ func TestFloodMultipleTransactions(t *testing.T) {
 		accountKeys = append(accountKeys, encodedKey)
 	}
 
-	ledgers := []*Ledger{}
+	ledgers := []*ledger.Ledger{}
 	for i := 0; i < 10; i++ {
 		ledgers = append(ledgers, createLedgerWithAccounts(accountKeys...))
 	}
@@ -369,7 +370,7 @@ func TestFloodMultipleTransactions(t *testing.T) {
 				signatureBytes := encrypt.Sign([]byte(msg), keyPairs[fromName].PrivateKey)
 				signatureStr := base64.StdEncoding.EncodeToString(signatureBytes)
 
-				txn := &SignedTransaction{
+				txn := &ledger.SignedTransaction{
 					ID:        txnID,
 					From:      fromAccount,
 					To:        toAccount,

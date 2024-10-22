@@ -1,10 +1,11 @@
 package ledger
 
 import (
+	"encoding/base64"
 	"encrypt"
+	"fmt"
 	"strconv"
 	"sync"
-	"util"
 )
 
 type Ledger struct {
@@ -48,9 +49,18 @@ func (l *Ledger) SignedTransaction(tx *SignedTransaction) {
 	msg := tx.ID + tx.From + tx.To + strconv.Itoa(tx.Amount)
 
 	decodedKey, err := encrypt.DecodeKey(tx.From)
-	util.Must(err)
+	if err != nil {
+		fmt.Println("Error decoding public key:", err)
+		return
+	}
 
-	validSignature := encrypt.Verify([]byte(msg), []byte(tx.Signature), decodedKey)
+	signatureBytes, err := base64.StdEncoding.DecodeString(tx.Signature)
+	if err != nil {
+		fmt.Println("Error decoding signature:", err)
+		return
+	}
+
+	validSignature := encrypt.Verify([]byte(msg), signatureBytes, decodedKey)
 
 	if validSignature {
 		l.Accounts[tx.From] -= tx.Amount

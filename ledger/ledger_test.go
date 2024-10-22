@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"encoding/base64"
 	"encrypt"
 	"strconv"
 	"testing"
@@ -21,13 +22,14 @@ func TestValidSignedTransaction(t *testing.T) {
 
 	//Create valid signed transaction from pk1 to pk2
 	msg := "1" + enc_pk1 + enc_pk2 + strconv.Itoa(15)
-	valid_sig := encrypt.Sign([]byte(msg), sk1)
+	valid_sig_bytes := encrypt.Sign([]byte(msg), sk1)
+	valid_sig := base64.StdEncoding.EncodeToString(valid_sig_bytes)
 	valid_tx := SignedTransaction{
 		ID:        "1",
 		From:      enc_pk1,
 		To:        enc_pk2,
 		Amount:    15,
-		Signature: string(valid_sig),
+		Signature: valid_sig,
 	}
 
 	//Perform transaction on ledger1 and ledger2
@@ -66,13 +68,14 @@ func TestInvalidSignedTransaction(t *testing.T) {
 
 	// Create invalid signed transaction from pk1 to pk2 (signature is generated using the wrong key sk2)
 	msg := "1" + enc_pk1 + enc_pk2 + strconv.Itoa(15)
-	invalid_sig := encrypt.Sign([]byte(msg), sk2) // Using sk2 instead of sk1 for signing
+	invalid_sig_bytes := encrypt.Sign([]byte(msg), sk2) // Using sk2 instead of sk1 for signing
+	invalid_sig := base64.StdEncoding.EncodeToString(invalid_sig_bytes)
 	invalid_tx := SignedTransaction{
 		ID:        "1",
 		From:      enc_pk1,
 		To:        enc_pk2,
 		Amount:    15,
-		Signature: string(invalid_sig),
+		Signature: invalid_sig,
 	}
 
 	ledger1.SignedTransaction(&invalid_tx)
