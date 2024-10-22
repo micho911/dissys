@@ -1,11 +1,18 @@
 package peer
 
 import (
+	"encoding/base64"
+	"encrypt"
 	"fmt"
-	"ledger"
+	"strconv"
 	"testing"
 	"time"
 )
+
+type KeyPair struct {
+	PublicKey  encrypt.Key
+	PrivateKey encrypt.Key
+}
 
 // Test function
 func TestConnection(t *testing.T) {
@@ -45,10 +52,25 @@ func TestConnection(t *testing.T) {
 
 func TestFloodTransaction(t *testing.T) {
 	fmt.Println("\nTesting flood transactions...")
+	accounts := []string{"alice", "bob", "amin", "bus", "gang"}
+	keyPairs := make(map[string]KeyPair)
+	encodedAccounts := make(map[string]string)
+
+	for _, account := range accounts {
+		pk, sk := encrypt.KeyGen(2048)
+		keyPairs[account] = KeyPair{PublicKey: pk, PrivateKey: sk}
+		encodedAccounts[account] = encrypt.EncodeKey(pk)
+	}
+
+	accountKeys := make([]string, 0, len(encodedAccounts))
+	for _, encodedKey := range encodedAccounts {
+		accountKeys = append(accountKeys, encodedKey)
+	}
+
 	// Create peers
 	ledgers := []*ledger.Ledger{}
 	for range 5 {
-		ledgers = append(ledgers, createLedgerWithAccounts("alice", "bob", "amin", "bus", "gang"))
+		ledgers = append(ledgers, createLedgerWithAccounts(accountKeys...))
 	}
 	peers := createPeersWithLedgers(ledgers)
 	peer1, peer2, peer3, peer4, peer5 := peers[0], peers[1], peers[2], peers[3], peers[4]
@@ -60,81 +82,273 @@ func TestFloodTransaction(t *testing.T) {
 	startPeer(t, peer5, peer2.Address, 500*time.Millisecond)
 
 	// Create a transaction
-	t1 := &ledger.Transaction{
-		ID:     "1",
-		From:   "alice",
-		To:     "bob",
-		Amount: 10,
+	txnID := "1"
+	fromAccount := encodedAccounts["alice"]
+	toAccount := encodedAccounts["bob"]
+	amount := 10
+	msg := txnID + fromAccount + toAccount + strconv.Itoa(amount)
+	signatureBytes := encrypt.Sign([]byte(msg), keyPairs["alice"].PrivateKey)
+	signatureStr := base64.StdEncoding.EncodeToString(signatureBytes)
+
+	t1 := &SignedTransaction{
+		ID:        txnID,
+		From:      fromAccount,
+		To:        toAccount,
+		Amount:    amount,
+		Signature: signatureStr,
 	}
 
 	peer1.FloodTransaction(t1)
 	time.Sleep(500 * time.Millisecond)
 
 	//Check that peer 1 now has updated ledger
-	if peer1.Ledger.Accounts["alice"] != -10 {
+	if peer1.Ledger.Accounts[encodedAccounts["alice"]] != -10 {
+
 		t.Fatalf("Expected peer %s's ledger to have -10 in Alice's account", peer1.Id)
 	}
-	if peer1.Ledger.Accounts["bob"] != 10 {
+	if peer1.Ledger.Accounts[encodedAccounts["bob"]] != 10 {
 		t.Fatalf("Expected peer %s's ledger to have 10 in Bob's account", peer1.Id)
 	}
 
-	t2 := &ledger.Transaction{
-		ID:     "2",
-		From:   "amin",
-		To:     "alice",
-		Amount: 30,
+	txnID = "2"
+	fromAccount = encodedAccounts["amin"]
+	toAccount = encodedAccounts["alice"]
+	amount = 30
+	msg = txnID + fromAccount + toAccount + strconv.Itoa(amount)
+	signatureBytes = encrypt.Sign([]byte(msg), keyPairs["amin"].PrivateKey)
+	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
+
+	t2 := &SignedTransaction{
+		ID:        txnID,
+		From:      fromAccount,
+		To:        toAccount,
+		Amount:    amount,
+		Signature: signatureStr,
 	}
+
 	peer2.FloodTransaction(t2)
 	time.Sleep(500 * time.Millisecond)
 	//Check that peer 1 now has updated ledger after peer2 flooded
-	if peer1.Ledger.Accounts["alice"] != 20 {
+	if peer1.Ledger.Accounts[encodedAccounts["alice"]] != 20 {
 		fmt.Printf("Alice has %d in account", peer1.Ledger.Accounts["alice"])
 		t.Fatalf("Expected peer %s's ledger to have 20 in Alice's account", peer1.Id)
 
 	}
-	if peer1.Ledger.Accounts["amin"] != -30 {
+	if peer1.Ledger.Accounts[encodedAccounts["amin"]] != -30 {
 		t.Fatalf("Expected peer %s's ledger to have -30 in Bob's account", peer1.Id)
 	}
 
-	t3 := &ledger.Transaction{
-		ID:     "3",
-		From:   "amin",
-		To:     "bob",
-		Amount: 15,
+	txnID = "3"
+	fromAccount = encodedAccounts["amin"]
+	toAccount = encodedAccounts["bob"]
+	amount = 15
+	msg = txnID + fromAccount + toAccount + strconv.Itoa(amount)
+	signatureBytes = encrypt.Sign([]byte(msg), keyPairs["amin"].PrivateKey)
+	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
+
+	t3 := &SignedTransaction{
+		ID:        txnID,
+		From:      fromAccount,
+		To:        toAccount,
+		Amount:    amount,
+		Signature: signatureStr,
 	}
 	peer3.FloodTransaction(t3)
 	time.Sleep(500 * time.Millisecond)
-	//Check that peer 1 now has updated ledgers after peer3 flooded
-	if peer1.Ledger.Accounts["amin"] != -45 {
+	if peer1.Ledger.Accounts[encodedAccounts["amin"]] != -45 {
 		t.Fatalf("Expected peer %s's ledger to have -45 in Amin's account", peer1.Id)
 
 	}
-	if peer1.Ledger.Accounts["bob"] != 25 {
+	if peer1.Ledger.Accounts[encodedAccounts["bob"]] != 25 {
 		t.Fatalf("Expected peer %s's ledger to have -25 in Bob's account", peer1.Id)
 	}
-	//Check that peer 1 now has updated ledgers after peer3 flooded
-	if peer2.Ledger.Accounts["amin"] != -45 {
+	if peer2.Ledger.Accounts[encodedAccounts["amin"]] != -45 {
 		t.Fatalf("Expected peer %s's ledger to have -45 in Amin's account", peer2.Id)
 
 	}
-	if peer2.Ledger.Accounts["bob"] != 25 {
+	if peer2.Ledger.Accounts[encodedAccounts["bob"]] != 25 {
 		t.Fatalf("Expected peer %s's ledger to have -25 in Bob's account", peer2.Id)
+	}
+}
+
+func TestInvalidTransactions(t *testing.T) {
+	fmt.Println("\nTesting invalid transactions...")
+
+	// Setup accounts and keys
+	accounts := []string{"alice", "bob", "charlie"}
+	keyPairs := make(map[string]KeyPair)
+	encodedAccounts := make(map[string]string)
+
+	for _, account := range accounts {
+		pk, sk := encrypt.KeyGen(2048)
+		keyPairs[account] = KeyPair{PublicKey: pk, PrivateKey: sk}
+		encodedAccounts[account] = encrypt.EncodeKey(pk)
+	}
+
+	accountKeys := []string{encodedAccounts["alice"], encodedAccounts["bob"], encodedAccounts["charlie"]}
+
+	// Create ledgers with accounts
+	ledgers := []*Ledger{}
+	for i := 0; i < 3; i++ {
+		ledgers = append(ledgers, createLedgerWithAccounts(accountKeys...))
+	}
+	peers := createPeersWithLedgers(ledgers)
+	peer1, peer2, peer3 := peers[0], peers[1], peers[2]
+
+	startPeer(t, peer1, "localhost:0", 500*time.Millisecond)
+	startPeer(t, peer2, peer1.Address, 500*time.Millisecond)
+	startPeer(t, peer3, peer1.Address, 500*time.Millisecond)
+
+	// Initial balances
+	initialBalance := 100
+	for _, peer := range peers {
+		peer.Ledger.Accounts[encodedAccounts["alice"]] = initialBalance
+		peer.Ledger.Accounts[encodedAccounts["bob"]] = initialBalance
+		peer.Ledger.Accounts[encodedAccounts["charlie"]] = initialBalance
+	}
+
+	txnID := "invalid-1"
+	fromAccount := encodedAccounts["alice"]
+	toAccount := encodedAccounts["bob"]
+	amount := 50
+	msg := txnID + fromAccount + toAccount + strconv.Itoa(amount)
+	signatureBytes := encrypt.Sign([]byte(msg), keyPairs["bob"].PrivateKey) // Wrong key
+	signatureStr := base64.StdEncoding.EncodeToString(signatureBytes)
+
+	invalidTxn1 := &SignedTransaction{
+		ID:        txnID,
+		From:      fromAccount,
+		To:        toAccount,
+		Amount:    amount,
+		Signature: signatureStr,
+	}
+
+	peer1.FloodTransaction(invalidTxn1)
+	time.Sleep(500 * time.Millisecond)
+
+	for _, peer := range peers {
+		if peer.Ledger.Accounts[fromAccount] != initialBalance {
+			t.Fatalf("Peer %s: Expected Alice's balance to remain %d, got %d", peer.Id, initialBalance, peer.Ledger.Accounts[fromAccount])
+		}
+		if peer.Ledger.Accounts[toAccount] != initialBalance {
+			t.Fatalf("Peer %s: Expected Bob's balance to remain %d, got %d", peer.Id, initialBalance, peer.Ledger.Accounts[toAccount])
+		}
+	}
+
+	txnID = "invalid-2"
+	fromAccount = encodedAccounts["alice"]
+	toAccount = encodedAccounts["charlie"]
+	amount = 30
+	msg = txnID + fromAccount + toAccount + strconv.Itoa(amount)
+	signatureBytes = encrypt.Sign([]byte(msg), keyPairs["alice"].PrivateKey)
+	signatureBytes[0] ^= 0xFF // Tamper with the signature
+	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
+
+	invalidTxn2 := &SignedTransaction{
+		ID:        txnID,
+		From:      fromAccount,
+		To:        toAccount,
+		Amount:    amount,
+		Signature: signatureStr,
+	}
+
+	peer2.FloodTransaction(invalidTxn2)
+	time.Sleep(500 * time.Millisecond)
+
+	for _, peer := range peers {
+		if peer.Ledger.Accounts[fromAccount] != initialBalance {
+			t.Fatalf("Peer %s: Expected Alice's balance to remain %d, got %d", peer.Id, initialBalance, peer.Ledger.Accounts[fromAccount])
+		}
+		if peer.Ledger.Accounts[toAccount] != initialBalance {
+			t.Fatalf("Peer %s: Expected Charlie's balance to remain %d, got %d", peer.Id, initialBalance, peer.Ledger.Accounts[toAccount])
+		}
+	}
+
+	txnID = "invalid-3"
+	fromAccount = encodedAccounts["bob"]
+	toAccount = encodedAccounts["alice"]
+	amount = 20
+	wrongMsg := txnID + fromAccount + toAccount + strconv.Itoa(amount+10)       // Modify the amount
+	signatureBytes = encrypt.Sign([]byte(wrongMsg), keyPairs["bob"].PrivateKey) // Sign wrong message
+	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
+
+	invalidTxn3 := &SignedTransaction{
+		ID:        txnID,
+		From:      fromAccount,
+		To:        toAccount,
+		Amount:    amount,
+		Signature: signatureStr,
+	}
+
+	peer3.FloodTransaction(invalidTxn3)
+	time.Sleep(500 * time.Millisecond)
+
+	// Check that balances did not change
+	for _, peer := range peers {
+		if peer.Ledger.Accounts[fromAccount] != initialBalance {
+			t.Fatalf("Peer %s: Expected Bob's balance to remain %d, got %d", peer.Id, initialBalance, peer.Ledger.Accounts[fromAccount])
+		}
+		if peer.Ledger.Accounts[toAccount] != initialBalance {
+			t.Fatalf("Peer %s: Expected Alice's balance to remain %d, got %d", peer.Id, initialBalance, peer.Ledger.Accounts[toAccount])
+		}
+	}
+
+	// 4. Valid Transaction for control
+	txnID = "valid-1"
+	fromAccount = encodedAccounts["alice"]
+	toAccount = encodedAccounts["bob"]
+	amount = 40
+	msg = txnID + fromAccount + toAccount + strconv.Itoa(amount)
+	signatureBytes = encrypt.Sign([]byte(msg), keyPairs["alice"].PrivateKey)
+	signatureStr = base64.StdEncoding.EncodeToString(signatureBytes)
+
+	validTxn := &SignedTransaction{
+		ID:        txnID,
+		From:      fromAccount,
+		To:        toAccount,
+		Amount:    amount,
+		Signature: signatureStr,
+	}
+
+	peer1.FloodTransaction(validTxn)
+	time.Sleep(500 * time.Millisecond)
+
+	// Check that balances updated correctly
+	expectedAliceBalance := initialBalance - amount
+	expectedBobBalance := initialBalance + amount
+	for _, peer := range peers {
+		if peer.Ledger.Accounts[fromAccount] != expectedAliceBalance {
+			t.Fatalf("Peer %s: Expected Alice's balance to be %d, got %d", peer.Id, expectedAliceBalance, peer.Ledger.Accounts[fromAccount])
+		}
+		if peer.Ledger.Accounts[toAccount] != expectedBobBalance {
+			t.Fatalf("Peer %s: Expected Bob's balance to be %d, got %d", peer.Id, expectedBobBalance, peer.Ledger.Accounts[toAccount])
+		}
 	}
 }
 
 func TestFloodMultipleTransactions(t *testing.T) {
 	fmt.Println("\n**************Integration test**************\n (*5 accounts on 10 peers sending 10 transactions each*)")
-	// Create 5 accounts: account1, account2, account3, account4, account5
 	accounts := []string{"account1", "account2", "account3", "account4", "account5"}
+	keyPairs := make(map[string]KeyPair)
+	encodedAccounts := make(map[string]string)
 
-	// Create ledgers for the peers with the accounts
-	ledgers := []*ledger.Ledger{}
-	for i := 0; i < 10; i++ { // Create 10 peers
-		ledgers = append(ledgers, createLedgerWithAccounts(accounts...))
+	for _, account := range accounts {
+		pk, sk := encrypt.KeyGen(1024)
+		keyPairs[account] = KeyPair{PublicKey: pk, PrivateKey: sk}
+		encodedAccounts[account] = encrypt.EncodeKey(pk)
+	}
+
+	accountKeys := make([]string, 0, len(encodedAccounts))
+	for _, encodedKey := range encodedAccounts {
+		accountKeys = append(accountKeys, encodedKey)
+	}
+
+	ledgers := []*Ledger{}
+	for i := 0; i < 10; i++ {
+		ledgers = append(ledgers, createLedgerWithAccounts(accountKeys...))
 	}
 	peers := createPeersWithLedgers(ledgers)
 
-	// Start peers in a network where each peer connects to the previous one
 	startPeer(t, peers[0], "localhost:0", 500*time.Millisecond)
 	for i := 1; i < len(peers); i++ {
 		startPeer(t, peers[i], peers[i-1].Address, 500*time.Millisecond)
@@ -143,16 +357,24 @@ func TestFloodMultipleTransactions(t *testing.T) {
 	// Each peer sends 10 transactions involving the 5 accounts
 	for _, peer := range peers {
 		go func(p *Peer) {
-			for j := 0; j < 10; j++ { // Send 10 transactions from each peer
-				from := accounts[j%5] // Cycle through accounts
-				to := accounts[(j+1)%5]
-				amount := 10 * (j + 1) // Vary the transaction amount
+			for j := 0; j < 10; j++ {
+				fromName := accounts[j%5]
+				toName := accounts[(j+1)%5]
+				amount := 10 * (j + 1)
 
-				txn := &ledger.Transaction{
-					ID:     fmt.Sprintf("txn-%s-%d", p.Id, j),
-					From:   from,
-					To:     to,
-					Amount: amount,
+				fromAccount := encodedAccounts[fromName]
+				toAccount := encodedAccounts[toName]
+				txnID := fmt.Sprintf("txn-%s-%d", p.Id, j)
+				msg := txnID + fromAccount + toAccount + strconv.Itoa(amount)
+				signatureBytes := encrypt.Sign([]byte(msg), keyPairs[fromName].PrivateKey)
+				signatureStr := base64.StdEncoding.EncodeToString(signatureBytes)
+
+				txn := &SignedTransaction{
+					ID:        txnID,
+					From:      fromAccount,
+					To:        toAccount,
+					Amount:    amount,
+					Signature: signatureStr,
 				}
 
 				// Flood transaction to the network
@@ -161,10 +383,8 @@ func TestFloodMultipleTransactions(t *testing.T) {
 		}(peer)
 	}
 
-	// Give time for transactions to propagate
 	time.Sleep(500 * time.Millisecond)
 
-	// Check that all peers have the same ledger state
 	for _, account := range accounts {
 		expectedBalance := peers[0].Ledger.Accounts[account]
 		for _, peer := range peers {

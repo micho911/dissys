@@ -105,9 +105,8 @@ func (p *Peer) FloodMessage(msg string) {
 		}
 	}
 }
-
-func (p *Peer) FloodTransaction(tx *ledger.Transaction) {
-	p.Ledger.Transaction(tx)
+func (p *Peer) FloodTransaction(tx *SignedTransaction) {
+	p.Ledger.SignedTransaction(tx)
 	for addr := range p.Peers {
 		senderAddr := p.Address
 		if addr == senderAddr {
