@@ -1,11 +1,11 @@
 package peer
 
 import (
+	"ledger"
 	"log"
-	"transaction"
 )
 
-func (p *Peer) FloodSignedTransaction(tx *transaction.SignedTransaction) {
+func (p *Peer) FloodSignedTransaction(tx *ledger.SignedTransaction) {
 	p.Ledger.SignedTransaction(tx)
 	for addr := range p.Peers {
 		senderAddr := p.Address

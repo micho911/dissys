@@ -2,16 +2,16 @@ package peer
 
 import (
 	"fmt"
-	"transaction"
+	"ledger"
 )
 
-func (p *Peer) UpdateLedger(tx *transaction.Transaction, reply *bool) error {
+func (p *Peer) UpdateLedger(tx *ledger.Transaction, reply *bool) error {
 	p.Ledger.Transaction(tx)
 	*reply = true
 	return nil
 }
 
-func (p *Peer) SignedUpdateLedger(tx *transaction.SignedTransaction, reply *bool) error {
+func (p *Peer) SignedUpdateLedger(tx *ledger.SignedTransaction, reply *bool) error {
 	p.Ledger.SignedTransaction(tx)
 	*reply = true
 	return nil

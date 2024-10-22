@@ -2,21 +2,21 @@ package main
 
 import (
 	"fmt"
+	"ledger"
 	"peer"
 	"sort"
 	"time"
-	"transaction"
 )
 
-func createLedgerWithAccounts(accounts ...string) *transaction.Ledger {
-	l := transaction.MakeLedger()
+func createLedgerWithAccounts(accounts ...string) *ledger.Ledger {
+	l := ledger.MakeLedger()
 	for _, account := range accounts {
 		l.Accounts[account] = 0
 	}
 	return l
 }
 
-func createPeersWithLedgers(ledgers []*transaction.Ledger) []*peer.Peer {
+func createPeersWithLedgers(ledgers []*ledger.Ledger) []*peer.Peer {
 	peers := make([]*peer.Peer, len(ledgers))
 	for i, ledger := range ledgers {
 		peers[i] = &peer.Peer{
