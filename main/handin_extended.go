@@ -5,17 +5,18 @@ import (
 	"peer"
 	"sort"
 	"time"
+	"transaction"
 )
 
-func createLedgerWithAccounts(accounts ...string) *peer.Ledger {
-	l := peer.MakeLedger()
+func createLedgerWithAccounts(accounts ...string) *transaction.Ledger {
+	l := transaction.MakeLedger()
 	for _, account := range accounts {
 		l.Accounts[account] = 0
 	}
 	return l
 }
 
-func createPeersWithLedgers(ledgers []*peer.Ledger) []*peer.Peer {
+func createPeersWithLedgers(ledgers []*transaction.Ledger) []*peer.Peer {
 	peers := make([]*peer.Peer, len(ledgers))
 	for i, ledger := range ledgers {
 		peers[i] = &peer.Peer{

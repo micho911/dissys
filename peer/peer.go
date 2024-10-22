@@ -5,13 +5,14 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"transaction"
 )
 
 type Peer struct {
 	Id      string
 	Address string
 	Peers   map[string]*rpc.Client
-	Ledger  *Ledger
+	Ledger  *transaction.Ledger
 }
 
 func (p *Peer) Connect(addr string) {
@@ -104,7 +105,8 @@ func (p *Peer) FloodMessage(msg string) {
 		}
 	}
 }
-func (p *Peer) FloodTransaction(tx *Transaction) {
+
+func (p *Peer) FloodTransaction(tx *transaction.Transaction) {
 	p.Ledger.Transaction(tx)
 	for addr := range p.Peers {
 		senderAddr := p.Address

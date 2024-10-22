@@ -5,17 +5,18 @@ import (
 	"strconv"
 	"testing"
 	"time"
+	"transaction"
 )
 
-func createLedgerWithAccounts(accounts ...string) *Ledger {
-	l := MakeLedger()
+func createLedgerWithAccounts(accounts ...string) *transaction.Ledger {
+	l := transaction.MakeLedger()
 	for _, account := range accounts {
 		l.Accounts[account] = 0
 	}
 	return l
 }
 
-func createPeersWithLedgers(ledgers []*Ledger) []*Peer {
+func createPeersWithLedgers(ledgers []*transaction.Ledger) []*Peer {
 	peers := make([]*Peer, len(ledgers))
 	for i, ledger := range ledgers {
 		peers[i] = &Peer{Id: strconv.Itoa(i + 1), Ledger: ledger}
@@ -26,7 +27,7 @@ func createPeersWithLedgers(ledgers []*Ledger) []*Peer {
 func createPeers(ids ...string) []*Peer {
 	peers := make([]*Peer, len(ids))
 	for i, id := range ids {
-		peers[i] = &Peer{Id: id, Ledger: MakeLedger()}
+		peers[i] = &Peer{Id: id, Ledger: transaction.MakeLedger()}
 	}
 	return peers
 }
