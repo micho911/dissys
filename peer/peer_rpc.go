@@ -5,8 +5,8 @@ import (
 	"ledger"
 )
 
-func (p *Peer) UpdateLedger(tx *ledger.Transaction, reply *bool) error {
-	p.Ledger.Transaction(tx)
+func (p *Peer) UpdateLedger(tx *SignedTransaction, reply *bool) error {
+	p.Ledger.SignedTransaction(tx)
 	*reply = true
 	return nil
 }
