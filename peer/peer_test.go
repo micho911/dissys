@@ -2,6 +2,7 @@ package peer
 
 import (
 	"fmt"
+	"ledger"
 	"testing"
 	"time"
 )
@@ -45,7 +46,7 @@ func TestConnection(t *testing.T) {
 func TestFloodTransaction(t *testing.T) {
 	fmt.Println("\nTesting flood transactions...")
 	// Create peers
-	ledgers := []*Ledger{}
+	ledgers := []*ledger.Ledger{}
 	for range 5 {
 		ledgers = append(ledgers, createLedgerWithAccounts("alice", "bob", "amin", "bus", "gang"))
 	}
@@ -59,7 +60,7 @@ func TestFloodTransaction(t *testing.T) {
 	startPeer(t, peer5, peer2.Address, 500*time.Millisecond)
 
 	// Create a transaction
-	t1 := &Transaction{
+	t1 := &ledger.Transaction{
 		ID:     "1",
 		From:   "alice",
 		To:     "bob",
@@ -77,7 +78,7 @@ func TestFloodTransaction(t *testing.T) {
 		t.Fatalf("Expected peer %s's ledger to have 10 in Bob's account", peer1.Id)
 	}
 
-	t2 := &Transaction{
+	t2 := &ledger.Transaction{
 		ID:     "2",
 		From:   "amin",
 		To:     "alice",
@@ -95,7 +96,7 @@ func TestFloodTransaction(t *testing.T) {
 		t.Fatalf("Expected peer %s's ledger to have -30 in Bob's account", peer1.Id)
 	}
 
-	t3 := &Transaction{
+	t3 := &ledger.Transaction{
 		ID:     "3",
 		From:   "amin",
 		To:     "bob",
@@ -127,7 +128,7 @@ func TestFloodMultipleTransactions(t *testing.T) {
 	accounts := []string{"account1", "account2", "account3", "account4", "account5"}
 
 	// Create ledgers for the peers with the accounts
-	ledgers := []*Ledger{}
+	ledgers := []*ledger.Ledger{}
 	for i := 0; i < 10; i++ { // Create 10 peers
 		ledgers = append(ledgers, createLedgerWithAccounts(accounts...))
 	}
@@ -147,7 +148,7 @@ func TestFloodMultipleTransactions(t *testing.T) {
 				to := accounts[(j+1)%5]
 				amount := 10 * (j + 1) // Vary the transaction amount
 
-				txn := &Transaction{
+				txn := &ledger.Transaction{
 					ID:     fmt.Sprintf("txn-%s-%d", p.Id, j),
 					From:   from,
 					To:     to,

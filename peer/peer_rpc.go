@@ -1,9 +1,18 @@
 package peer
 
-import "fmt"
+import (
+	"fmt"
+	"ledger"
+)
 
-func (p *Peer) UpdateLedger(tx *Transaction, reply *bool) error {
+func (p *Peer) UpdateLedger(tx *ledger.Transaction, reply *bool) error {
 	p.Ledger.Transaction(tx)
+	*reply = true
+	return nil
+}
+
+func (p *Peer) SignedUpdateLedger(tx *ledger.SignedTransaction, reply *bool) error {
+	p.Ledger.SignedTransaction(tx)
 	*reply = true
 	return nil
 }

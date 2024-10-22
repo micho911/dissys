@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"ledger"
 	"peer"
 	"time"
 )
@@ -12,7 +13,7 @@ func main() {
 
 	accounts := []string{"account1", "account2", "account3", "account4", "account5"}
 
-	ledgers := []*peer.Ledger{}
+	ledgers := []*ledger.Ledger{}
 	for i := 0; i < 10; i++ {
 		ledgers = append(ledgers, createLedgerWithAccounts(accounts...))
 	}
@@ -30,7 +31,7 @@ func main() {
 				to := accounts[(j+1)%5]
 				amount := 10 * (j + 1)
 
-				txn := &peer.Transaction{
+				txn := &ledger.Transaction{
 					ID:     fmt.Sprintf("txn-%s-%d", p.Id, j),
 					From:   from,
 					To:     to,

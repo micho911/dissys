@@ -5,9 +5,12 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
 	"io"
 	"math/big"
 	"os"
+	"strings"
 	"util"
 )
 
@@ -134,4 +137,42 @@ func Verify(message []byte, signature []byte, pk Key) bool {
 	originalHash := hash[:]
 
 	return string(recoveredHash) == string(originalHash)
+}
+
+func EncodeKey(key Key) string {
+	expBytes := key.Exp.Bytes()
+	nBytes := key.N.Bytes()
+
+	// Convert each component to base64
+	expStr := base64.StdEncoding.EncodeToString(expBytes)
+	nStr := base64.StdEncoding.EncodeToString(nBytes)
+
+	// Combine both parts into a single string, using a delimiter (e.g., ":")
+	return expStr + ":" + nStr
+}
+
+func DecodeKey(encodedKey string) (Key, error) {
+	var key Key
+	// Split the string based on the delimiter ":"
+	parts := strings.Split(encodedKey, ":")
+	if len(parts) != 2 {
+		return key, fmt.Errorf("invalid encoded key format")
+	}
+
+	// Decode the base64 strings into byte slices
+	expBytes, err := base64.StdEncoding.DecodeString(parts[0])
+	if err != nil {
+		return key, fmt.Errorf("failed to decode Exp: %v", err)
+	}
+
+	nBytes, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return key, fmt.Errorf("failed to decode N: %v", err)
+	}
+
+	// Convert the byte slices into big.Ints and assign them to the Key
+	key.Exp.SetBytes(expBytes)
+	key.N.SetBytes(nBytes)
+
+	return key, nil
 }
