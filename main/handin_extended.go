@@ -44,7 +44,7 @@ func printLedgers(peers []*peer.Peer) {
 			balance := p.Ledger.Accounts[account]
 			accountShort := account
 			if len(account) > 10 {
-				accountShort = account[:10] + "..."
+				accountShort = account[5:15] + "..."
 			}
 			fmt.Printf(" - %s: %d\n", accountShort, balance)
 		}
